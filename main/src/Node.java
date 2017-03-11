@@ -47,22 +47,26 @@ public class Node {
         if(rank == 0) {
             init(A, L, M);
             init(B, M, N);
-            init(C, L, N);
             print(A, L, M);
             print(B, M, N);
         }
         MPI.COMM_WORLD.Bcast(B, 0, M * N, MPI.INT, 0);
         int linesPerNode = L / size;
-        int[] linesA = new int[M * linesPerNode];
-        MPI.COMM_WORLD.Scatter(A, 0, M * linesPerNode, MPI.INT, linesA, 0, M * linesPerNode, MPI.INT, 0);
-        int[] linesC = new int[N * linesPerNode];
-        for(int i = 0; i < linesPerNode; i++)
-            for (int j = 0; j < N; j++) {
-                linesC[i * N + j] = 0;
+        if(linesPerNode != 0) {
+            int[] linesA = new int[M * linesPerNode];
+            MPI.COMM_WORLD.Scatter(A, 0, M * linesPerNode, MPI.INT, linesA, 0, M * linesPerNode, MPI.INT, 0);
+            int[] linesC = new int[N * linesPerNode];
+            for (int i = 0; i < linesPerNode; i++)
+                for (int j = 0; j < N; j++)
+                    for (int r = 0; r < M; r++)
+                        linesC[i * N + j] += linesA[i * M + r] * B[r * N + j];
+            MPI.COMM_WORLD.Gather(linesC, 0, N * linesPerNode, MPI.INT, C, 0, N * linesPerNode, MPI.INT, 0);
+        }
+        int lastLines = L % size;
+        for (int i = L - lastLines; i < L; i++)
+            for (int j = 0; j < N; j++)
                 for (int r = 0; r < M; r++)
-                    linesC[i * N + j] += linesA[i * M + r] * B[r * N + j];
-            }
-        MPI.COMM_WORLD.Gather(linesC, 0, N * linesPerNode, MPI.INT, C, 0, N * linesPerNode, MPI.INT, 0);
+                    C[i * N + j] += A[i * M + r] * B[r * N + j];
         if(rank == 0) print(C, L, N);
         MPI.Finalize();
     }
